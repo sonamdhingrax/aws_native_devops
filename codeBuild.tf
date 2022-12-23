@@ -1,5 +1,5 @@
-resource "aws_iam_role" "CodeBuildBasePolicy-openstor-eu-west-2" {
-  name = "CodeBuildBasePolicy-openstor-eu-west-2"
+resource "aws_iam_role" "CodeBuildBasePolicy-app" {
+  name = "CodeBuildBasePolicy-${var.app_name}"
 
   assume_role_policy = <<EOF
 {
@@ -18,8 +18,8 @@ EOF
 }
 
 
-resource "aws_iam_role_policy" "example" {
-  role = aws_iam_role.CodeBuildBasePolicy-openstor-eu-west-2.name
+resource "aws_iam_role_policy" "CodeBuildBasePolicy" {
+  role = aws_iam_role.CodeBuildBasePolicy-app.name
 
   policy = <<POLICY
 {
@@ -82,33 +82,43 @@ resource "aws_iam_role_policy" "example" {
                 "ecr:GetRepositoryPolicy"
             ],
             "Resource": [
-                "arn:aws:logs:eu-west-2:406883836544:log-group:/aws/codebuild/openstor_build",
-                "arn:aws:logs:eu-west-2:406883836544:log-group:/aws/codebuild/openstor_build:*",
-                "arn:aws:ecr:eu-west-2:406883836544:repository/openstor",
+                "arn:aws:logs:eu-west-2:${var.account_id}:log-group:/aws/codebuild/openstor_build",
+                "arn:aws:logs:eu-west-2:${var.account_id}:log-group:/aws/codebuild/openstor_build:*",
+                "arn:aws:ecr:eu-west-2:${var.account_id}:repository/openstor",
                 "arn:aws:s3:::codepipeline-eu-west-2-*",
-                "arn:aws:codecommit:eu-west-2:406883836544:openstor",
-                "arn:aws:codebuild:eu-west-2:406883836544:report-group/openstor_build-*"
+                "arn:aws:codecommit:eu-west-2:${var.account_id}:openstor",
+                "arn:aws:codebuild:eu-west-2:${var.account_id}:report-group/openstor_build-*"
             ]
-        }
+        },
+        {
+            "Sid": "VisualEditor2",
+            "Effect": "Allow",
+            "Action": [
+                "ssm:PutParameter",
+                "ssm:GetParametersByPath",
+                "ssm:GetParameters"
+            ],
+            "Resource": "arn:aws:ssm:eu-west-2:${var.account_id}:parameter/${aws_ssm_parameter.app_version.name}"
+        }        
     ]
 }
 POLICY
 }
 
-resource "aws_s3_bucket" "openstor_bucket" {
-  bucket = "openstor-bucket-2022"
+resource "aws_s3_bucket" "app_bucket" {
+  bucket = "${var.app_name}-bucket-2022"
 }
 
-resource "aws_s3_bucket_acl" "example" {
-  bucket = aws_s3_bucket.openstor_bucket.id
+resource "aws_s3_bucket_acl" "app_bucket_acl" {
+  bucket = aws_s3_bucket.app_bucket.id
   acl    = "private"
 }
 
-resource "aws_codebuild_project" "openstor_build" {
-  name          = "openstor_build"
+resource "aws_codebuild_project" "app_build" {
+  name          = "${var.app_name}_build"
   description   = "Create a docker image of the openstor app"
   build_timeout = "5"
-  service_role  = aws_iam_role.CodeBuildBasePolicy-openstor-eu-west-2.arn
+  service_role  = aws_iam_role.CodeBuildBasePolicy-app.arn
 
   artifacts {
     type = "NO_ARTIFACTS"
@@ -116,7 +126,7 @@ resource "aws_codebuild_project" "openstor_build" {
 
   cache {
     type     = "S3"
-    location = aws_s3_bucket.openstor_bucket.bucket
+    location = aws_s3_bucket.app_bucket.bucket
   }
 
   environment {
@@ -128,7 +138,7 @@ resource "aws_codebuild_project" "openstor_build" {
 
     environment_variable {
       name  = "ECR_REPO_NAME"
-      value = var.repo_name
+      value = var.app_name
     }
 
     environment_variable {
@@ -139,14 +149,14 @@ resource "aws_codebuild_project" "openstor_build" {
 
   logs_config {
     cloudwatch_logs {
-      group_name  = "/aws/codebuild/openstor_build"
-      stream_name = "/aws/codebuild/openstor_build"
+      group_name  = "/aws/codebuild/${var.app_name}_build"
+      stream_name = "/aws/codebuild/${var.app_name}_build"
     }
   }
 
   source {
     type            = "CODECOMMIT"
-    location        = "https://git-codecommit.eu-west-2.amazonaws.com/v1/repos/openstor"
+    location        = "https://git-codecommit.${var.region}.amazonaws.com/v1/repos/${var.app_name}"
     git_clone_depth = 1
 
     git_submodules_config {

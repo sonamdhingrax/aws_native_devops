@@ -1,6 +1,6 @@
-resource "aws_codecommit_repository" "test" {
-  repository_name = "openstor"
-  description     = "This is the Openstor App Repository"
+resource "aws_codecommit_repository" "app_repo" {
+  repository_name = var.app_name
+  description     = "This is the ${var.app_name} App Repository"
   # lifecycle {
   #   prevent_destroy = true
   # }
